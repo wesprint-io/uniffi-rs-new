@@ -1668,6 +1668,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "uniffi-fixture-ext-types-base"
+version = "0.22.0"
+dependencies = [
+ "anyhow",
+ "bytes",
+ "thiserror",
+ "uniffi",
+ "uniffi-fixture-ext-types-ffi-types",
+]
+
+[[package]]
 name = "uniffi-fixture-ext-types-custom-types"
 version = "0.22.0"
 dependencies = [
@@ -1680,6 +1691,16 @@ dependencies = [
 [[package]]
 name = "uniffi-fixture-ext-types-external-crate"
 version = "0.22.0"
+
+[[package]]
+name = "uniffi-fixture-ext-types-ffi-types"
+version = "0.22.0"
+dependencies = [
+ "anyhow",
+ "bytes",
+ "uniffi",
+ "url",
+]
 
 [[package]]
 name = "uniffi-fixture-ext-types-http-headermap"

@@ -59,7 +59,7 @@ mod tests {
         };
 
         uniffi_bindgen::library_mode::generate_bindings(
-            &cdylib_path,
+            &[&cdylib_path],
             None,
             &gen,
             &config_supplier,

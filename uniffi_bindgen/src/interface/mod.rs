@@ -367,7 +367,8 @@ impl ComponentInterface {
                 t,
                 Type::Object { .. }
                     | Type::External {
-                        kind: ExternalKind::Interface,
+                        kind: ExternalKind::Interface | ExternalKind::DataClass,
+                        contains_object_references: true,
                         ..
                     }
             )

@@ -107,7 +107,7 @@ enum Commands {
         crate_name: Option<String>,
 
         /// Path to the UDL file, or cdylib if `library-mode` is specified
-        source: Utf8PathBuf,
+        sources: Vec<Utf8PathBuf>,
 
         /// Whether we should exclude dependencies when running "cargo metadata".
         /// This will mean external types may not be resolved if they are implemented in crates
@@ -140,7 +140,7 @@ enum Commands {
 }
 
 fn gen_library_mode(
-    library_path: &camino::Utf8Path,
+    library_paths: &[&camino::Utf8Path],
     crate_name: Option<String>,
     languages: Vec<TargetLanguage>,
     cfo: Option<&camino::Utf8Path>,
@@ -166,16 +166,19 @@ fn gen_library_mode(
     for language in languages {
         // to help avoid mistakes we check the library is actually a cdylib, except
         // for swift where static libs are often used to extract the metadata.
-        if !matches!(language, TargetLanguage::Swift) && !uniffi_bindgen::is_cdylib(library_path) {
+        if !matches!(language, TargetLanguage::Swift)
+            && !library_paths.iter().all(uniffi_bindgen::is_cdylib)
+        {
             anyhow::bail!(
-                "Generate bindings for {language} requires a cdylib, but {library_path} was given"
+                "Generate bindings for {language} requires a cdylib, but {:?} was given",
+                library_paths
             );
         }
 
         // Type-bounds on trait implementations makes selecting between languages a bit tedious.
         match language {
             TargetLanguage::Kotlin => generate_bindings(
-                library_path,
+                library_paths,
                 crate_name.clone(),
                 &KotlinBindingGenerator,
                 &config_supplier,
@@ -185,7 +188,7 @@ fn gen_library_mode(
             )?
             .len(),
             TargetLanguage::Python => generate_bindings(
-                library_path,
+                library_paths,
                 crate_name.clone(),
                 &PythonBindingGenerator,
                 &config_supplier,
@@ -195,7 +198,7 @@ fn gen_library_mode(
             )?
             .len(),
             TargetLanguage::Ruby => generate_bindings(
-                library_path,
+                library_paths,
                 crate_name.clone(),
                 &RubyBindingGenerator,
                 &config_supplier,
@@ -205,7 +208,7 @@ fn gen_library_mode(
             )?
             .len(),
             TargetLanguage::Swift => generate_bindings(
-                library_path,
+                library_paths,
                 crate_name.clone(),
                 &SwiftBindingGenerator,
                 &config_supplier,
@@ -281,11 +284,12 @@ pub fn run_main() -> anyhow::Result<()> {
             no_format,
             config,
             lib_file,
-            source,
+            sources,
             crate_name,
             library_mode,
             metadata_no_deps,
         } => {
+            let sources_refs = sources.iter().map(AsRef::as_ref).collect::<Vec<_>>();
             if library_mode {
                 if lib_file.is_some() {
                     panic!("--lib-file is not compatible with --library.")
@@ -295,7 +299,7 @@ pub fn run_main() -> anyhow::Result<()> {
                     panic!("please specify at least one language with --language")
                 }
                 gen_library_mode(
-                    &source,
+                    &sources_refs,
                     crate_name,
                     language,
                     config.as_deref(),
@@ -307,15 +311,7 @@ pub fn run_main() -> anyhow::Result<()> {
                 if metadata_no_deps {
                     panic!("--metadata-no-deps makes no sense when not in library mode")
                 }
-                gen_bindings(
-                    &source,
-                    config.as_deref(),
-                    language,
-                    out_dir.as_deref(),
-                    lib_file.as_deref(),
-                    crate_name.as_deref(),
-                    !no_format,
-                )?;
+                todo!("unimplemented")
             }
         }
         Commands::Scaffolding {

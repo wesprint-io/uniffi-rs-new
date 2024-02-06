@@ -24,7 +24,8 @@ use camino::Utf8Path;
 use std::{collections::HashMap, fs};
 use toml::value::Table as TomlTable;
 use uniffi_meta::{
-    create_metadata_groups, fixup_external_type, group_metadata, Metadata, MetadataGroup,
+    compute_contains_object_references, create_metadata_groups, fixup_external_type,
+    group_metadata, Metadata, MetadataGroup,
 };
 
 /// Generate foreign bindings
@@ -35,7 +36,7 @@ use uniffi_meta::{
 ///
 /// Returns the list of sources used to generate the bindings, in no particular order.
 pub fn generate_bindings<T: BindingGenerator + ?Sized>(
-    library_path: &Utf8Path,
+    library_paths: &[&Utf8Path],
     crate_name: Option<String>,
     binding_generator: &T,
     config_supplier: &dyn BindgenCrateConfigSupplier,
@@ -43,7 +44,7 @@ pub fn generate_bindings<T: BindingGenerator + ?Sized>(
     out_dir: &Utf8Path,
     try_format_code: bool,
 ) -> Result<Vec<Component<T::Config>>> {
-    let mut components = find_components(library_path, config_supplier)?
+    let mut components = find_components(library_paths, config_supplier)?
         .into_iter()
         .map(|Component { ci, config }| {
             let toml_value = overridden_config_value(config, config_file_override)?;
@@ -52,6 +53,7 @@ pub fn generate_bindings<T: BindingGenerator + ?Sized>(
         })
         .collect::<Result<Vec<_>>>()?;
 
+    let library_path = library_paths[0];
     let settings = GenerationSettings {
         out_dir: out_dir.to_owned(),
         try_format_code,
@@ -98,10 +100,18 @@ pub fn calc_cdylib_name(library_path: &Utf8Path) -> Option<&str> {
 ///
 /// `config_supplier` is used to find UDL files on disk and load config data.
 pub fn find_components(
-    library_path: &Utf8Path,
+    library_paths: &[&Utf8Path],
     config_supplier: &dyn BindgenCrateConfigSupplier,
 ) -> Result<Vec<Component<TomlTable>>> {
-    let items = macro_metadata::extract_from_library(library_path)?;
+    let items = library_paths
+        .into_iter()
+        .copied()
+        .map(macro_metadata::extract_from_library)
+        .collect::<Result<Vec<_>, _>>()?
+        .into_iter()
+        .flatten()
+        .collect::<Vec<_>>();
+    let contains_object_references = compute_contains_object_references(&items);
     let mut metadata_groups = create_metadata_groups(&items);
     group_metadata(&mut metadata_groups, items)?;
 
@@ -116,7 +126,9 @@ pub fn find_components(
             metadata_group.items = metadata_group
                 .items
                 .into_iter()
-                .map(|item| fixup_external_type(item, &metadata_groups))
+                .map(|item| {
+                    fixup_external_type(item, &metadata_groups, &contains_object_references)
+                })
                 // some items are both in UDL and library metadata. For many that's fine but
                 // uniffi-traits aren't trivial to compare meaning we end up with dupes.
                 // We filter out such problematic items here.

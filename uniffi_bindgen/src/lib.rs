@@ -291,15 +291,12 @@ pub fn generate_external_bindings<T: BindingGenerator>(
     if let Some(ref library_file) = library_file {
         macro_metadata::add_to_ci_from_library(&mut ci, library_file.as_ref())?;
     }
-    let crate_root = &guess_crate_root(udl_file.as_ref()).context("Failed to guess crate root")?;
 
     let config_file_override = config_file_override.as_ref().map(|p| p.as_ref());
 
     let config = {
-        let crate_config = load_toml_file(Some(&crate_root.join("uniffi.toml")))
-            .context("failed to load {crate_root}/uniffi.toml")?;
-        let toml_value =
-            overridden_config_value(crate_config.unwrap_or_default(), config_file_override)?;
+        let config = toml::value::Table::default();
+        let toml_value = overridden_config_value(config, config_file_override)?;
         binding_generator.new_config(&toml_value)?
     };
 
@@ -440,9 +437,7 @@ pub fn guess_crate_root(udl_file: &Utf8Path) -> Result<&Utf8Path> {
         .context("UDL file has no parent folder!")?
         .parent()
         .context("UDL file has no grand-parent folder!")?;
-    if !path_guess.join("Cargo.toml").is_file() {
-        bail!("UDL file does not appear to be inside a crate")
-    }
+
     Ok(path_guess)
 }
 
