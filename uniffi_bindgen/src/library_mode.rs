@@ -66,9 +66,20 @@ pub fn generate_external_bindings<T: BindingGenerator>(
     let cdylib_name = calc_cdylib_name(library_path);
     binding_generator.check_library_path(library_path, cdylib_name)?;
 
-    let sources = find_sources(library_path, cdylib_name, config_file_override)?;
+    let mut sources = find_sources(library_path, cdylib_name, config_file_override)?;
 
     fs::create_dir_all(out_dir)?;
+    if let Some(crate_name) = &crate_name {
+        let old_elements = sources.drain(..);
+        let mut matches: Vec<_> = old_elements
+            .filter(|s| &s.crate_name == crate_name)
+            .collect();
+        match matches.len() {
+            0 => bail!("Crate {crate_name} not found in {library_path}"),
+            1 => sources.push(matches.pop().unwrap()),
+            n => bail!("{n} crates named {crate_name} found in {library_path}"),
+        }
+    }
 
     for source in sources.iter() {
         binding_generator.write_bindings(&source.ci, &source.config, out_dir)?;
