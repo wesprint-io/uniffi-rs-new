@@ -127,7 +127,7 @@ struct GeneratedSources {
 impl GeneratedSources {
     fn new(crate_name: &str, cdylib_path: &Utf8Path, out_dir: &Utf8Path) -> Result<Self> {
         let sources = generate_bindings(
-            cdylib_path,
+            &[cdylib_path],
             None,
             &[TargetLanguage::Swift],
             None,

@@ -6,6 +6,8 @@ uniffi::build_foreign_language_testcases!(
 
 #[cfg(test)]
 mod tests {
+    use std::ops::Deref;
+
     use uniffi_bindgen::bindings::TargetLanguage;
     use uniffi_testing::UniFFITestHelper;
 
@@ -48,7 +50,7 @@ mod tests {
         let cdylib_path = test_helper.copy_cdylib_to_out_dir(&out_dir).unwrap();
 
         uniffi_bindgen::library_mode::generate_bindings(
-            &cdylib_path,
+            &[cdylib_path.deref()],
             None,
             &[language],
             None,

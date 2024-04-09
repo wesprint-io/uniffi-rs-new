@@ -34,7 +34,7 @@ use uniffi_meta::{
 ///
 /// Returns the list of sources used to generate the bindings, in no particular order.
 pub fn generate_bindings(
-    library_path: &Utf8Path,
+    library_paths: &[&Utf8Path],
     crate_name: Option<String>,
     target_languages: &[TargetLanguage],
     config_file_override: Option<&Utf8Path>,
@@ -46,7 +46,7 @@ pub fn generate_bindings(
             target_languages: target_languages.into(),
             try_format_code,
         },
-        library_path,
+        library_paths,
         crate_name,
         config_file_override,
         out_dir,
@@ -58,15 +58,15 @@ pub fn generate_bindings(
 /// Returns the list of sources used to generate the bindings, in no particular order.
 pub fn generate_external_bindings<T: BindingGenerator>(
     binding_generator: T,
-    library_path: &Utf8Path,
+    library_paths: &[&Utf8Path],
     crate_name: Option<String>,
     config_file_override: Option<&Utf8Path>,
     out_dir: &Utf8Path,
 ) -> Result<Vec<Source<T::Config>>> {
-    let cdylib_name = calc_cdylib_name(library_path);
-    binding_generator.check_library_path(library_path, cdylib_name)?;
+    let cdylib_name = calc_cdylib_name(library_paths[0]);
+    binding_generator.check_library_path(library_paths[0], cdylib_name)?;
 
-    let mut sources = find_sources(library_path, cdylib_name, config_file_override)?;
+    let mut sources = find_sources(library_paths, cdylib_name, config_file_override)?;
 
     fs::create_dir_all(out_dir)?;
     if let Some(crate_name) = &crate_name {
@@ -75,9 +75,12 @@ pub fn generate_external_bindings<T: BindingGenerator>(
             .filter(|s| &s.crate_name == crate_name)
             .collect();
         match matches.len() {
-            0 => bail!("Crate {crate_name} not found in {library_path}"),
+            0 => bail!("Crate {crate_name} not found in {}", library_paths[0]),
             1 => sources.push(matches.pop().unwrap()),
-            n => bail!("{n} crates named {crate_name} found in {library_path}"),
+            n => bail!(
+                "{n} crates named {crate_name} found in {}",
+                library_paths[0]
+            ),
         }
     }
 
@@ -110,11 +113,19 @@ pub fn calc_cdylib_name(library_path: &Utf8Path) -> Option<&str> {
 }
 
 fn find_sources<Config: BindingsConfig>(
-    library_path: &Utf8Path,
+    library_paths: &[&Utf8Path],
     cdylib_name: Option<&str>,
     config_file_override: Option<&Utf8Path>,
 ) -> Result<Vec<Source<Config>>> {
-    let items = macro_metadata::extract_from_library(library_path)?;
+    let items = library_paths
+        .into_iter()
+        .copied()
+        .map(macro_metadata::extract_from_library)
+        .collect::<Result<Vec<_>, _>>()?
+        .into_iter()
+        .flatten()
+        .collect::<Vec<_>>();
+
     let mut metadata_groups = create_metadata_groups(&items);
     group_metadata(&mut metadata_groups, items)?;
 

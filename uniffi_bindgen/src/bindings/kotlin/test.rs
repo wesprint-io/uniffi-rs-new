@@ -38,7 +38,7 @@ pub fn run_script(
     let out_dir = test_helper.create_out_dir(tmp_dir, &script_path)?;
     let cdylib_path = test_helper.copy_cdylib_to_out_dir(&out_dir)?;
     generate_bindings(
-        &cdylib_path,
+        &[&cdylib_path],
         None,
         &[TargetLanguage::Kotlin],
         None,

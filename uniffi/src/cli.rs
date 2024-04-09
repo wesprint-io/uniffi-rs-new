@@ -2,7 +2,9 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-use camino::Utf8PathBuf;
+use std::ops::Deref;
+
+use camino::{Utf8Path, Utf8PathBuf};
 use clap::{Parser, Subcommand};
 use uniffi_bindgen::bindings::TargetLanguage;
 
@@ -54,7 +56,7 @@ enum Commands {
         crate_name: Option<String>,
 
         /// Path to the UDL file, or cdylib if `library-mode` is specified
-        source: Utf8PathBuf,
+        sources: Vec<Utf8PathBuf>,
     },
 
     /// Generate Rust scaffolding code
@@ -87,7 +89,7 @@ pub fn run_main() -> anyhow::Result<()> {
             no_format,
             config,
             lib_file,
-            source,
+            sources,
             crate_name,
             library_mode,
         } => {
@@ -100,7 +102,10 @@ pub fn run_main() -> anyhow::Result<()> {
                     panic!("please specify at least one language with --language")
                 }
                 uniffi_bindgen::library_mode::generate_bindings(
-                    &source,
+                    &sources
+                        .iter()
+                        .map(|pathbuf| pathbuf.deref())
+                        .collect::<Vec<_>>(),
                     crate_name,
                     &language,
                     config.as_deref(),
@@ -108,15 +113,17 @@ pub fn run_main() -> anyhow::Result<()> {
                     !no_format,
                 )?;
             } else {
+                panic!("not implemented")
+                /*
                 uniffi_bindgen::generate_bindings(
-                    &source,
+                    &sources,
                     config.as_deref(),
                     language,
                     out_dir.as_deref(),
                     lib_file.as_deref(),
                     crate_name.as_deref(),
                     !no_format,
-                )?;
+                )?; */
             }
         }
         Commands::Scaffolding {
