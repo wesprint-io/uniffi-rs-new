@@ -160,6 +160,7 @@ impl TypeFinder for weedle::TypedefDefinition<'_> {
                         module_path: attrs.get_crate_name(),
                         kind,
                         tagged,
+                        contains_object_references: true,
                     }
                 }
             };

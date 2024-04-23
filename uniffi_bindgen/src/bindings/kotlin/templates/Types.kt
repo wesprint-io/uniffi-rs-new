@@ -121,7 +121,7 @@ inline fun <T : Disposable?, R> T.use(block: (T) -> R) =
 {%- when Type::Custom { module_path, name, builtin } %}
 {% include "CustomTypeTemplate.kt" %}
 
-{%- when Type::External { module_path, name, namespace, kind, tagged } %}
+{%- when Type::External { module_path, name, namespace, kind, tagged, contains_object_references } %}
 {% include "ExternalTypeTemplate.kt" %}
 
 {%- else %}

@@ -120,6 +120,7 @@ pub enum Type {
         namespace: String,
         kind: ExternalKind,
         tagged: bool, // does its FfiConverter use <UniFFITag>?
+        contains_object_references: bool,
     },
     // Custom type on the scaffolding side
     Custom {

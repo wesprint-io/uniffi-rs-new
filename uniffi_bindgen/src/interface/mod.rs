@@ -325,7 +325,8 @@ impl ComponentInterface {
                 t,
                 Type::Object { .. }
                     | Type::External {
-                        kind: ExternalKind::Interface | ExternalKind::DataClass, // we don't know if it recursively has an object or not
+                        kind: ExternalKind::Interface | ExternalKind::DataClass,
+                        contains_object_references: true,
                         ..
                     }
             )
