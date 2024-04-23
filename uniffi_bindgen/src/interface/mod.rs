@@ -361,13 +361,13 @@ impl ComponentInterface {
     /// This is important to know in language bindings that cannot integrate object types
     /// tightly with the host GC, and hence need to perform manual destruction of objects.
     pub fn item_contains_object_references(&self, item: &Type) -> bool {
-        // this is surely broken for external records with object refs?
         self.iter_types_in_item(item).any(|t| {
             matches!(
                 t,
                 Type::Object { .. }
                     | Type::External {
                         kind: ExternalKind::Interface | ExternalKind::DataClass,
+                        contains_object_references: true,
                         ..
                     }
             )

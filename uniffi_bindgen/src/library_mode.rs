@@ -24,7 +24,8 @@ use camino::Utf8Path;
 use std::{collections::HashMap, fs};
 use toml::value::Table as TomlTable;
 use uniffi_meta::{
-    create_metadata_groups, fixup_external_type, group_metadata, Metadata, MetadataGroup,
+    compute_types_without_obj_refs, create_metadata_groups, fixup_external_type, group_metadata,
+    Metadata, MetadataGroup,
 };
 
 /// Generate foreign bindings
@@ -102,8 +103,9 @@ pub fn find_components(
     config_supplier: &dyn BindgenCrateConfigSupplier,
 ) -> Result<Vec<Component<TomlTable>>> {
     let items = macro_metadata::extract_from_library(library_path)?;
-    let mut metadata_groups = create_metadata_groups(&items);
-    group_metadata(&mut metadata_groups, items)?;
+    let mut metadata_groups: HashMap<String, MetadataGroup> = create_metadata_groups(&items);
+    let items_without_obj_refs = compute_types_without_obj_refs(&items);
+    group_metadata(&mut metadata_groups, items, &items_without_obj_refs)?;
 
     // Collect and process all UDL from all groups at the start - the fixups
     // of external types makes this tricky to do as we finalize the group.
@@ -116,7 +118,9 @@ pub fn find_components(
             metadata_group.items = metadata_group
                 .items
                 .into_iter()
-                .map(|item| fixup_external_type(item, &metadata_groups))
+                .map(|item| {
+                    fixup_external_type(item, &metadata_groups, &items_without_obj_refs)
+                })
                 // some items are both in UDL and library metadata. For many that's fine but
                 // uniffi-traits aren't trivial to compare meaning we end up with dupes.
                 // We filter out such problematic items here.

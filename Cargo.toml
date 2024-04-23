@@ -35,6 +35,9 @@ members = [
   "fixtures/ext-types/proc-macro-lib",
   "fixtures/ext-types/sub-lib",
 
+  "fixtures/ext-types-proc-macro/base",
+  "fixtures/ext-types-proc-macro/ffi_types",
+
   "fixtures/docstring",
   "fixtures/docstring-proc-macro",
   "fixtures/keywords/kotlin",

@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-use std::collections::{BTreeSet, HashMap};
+use std::collections::{BTreeSet, HashMap, HashSet};
 
 use crate::*;
 use anyhow::{bail, Result};
@@ -40,8 +40,118 @@ pub fn create_metadata_groups(items: &[Metadata]) -> MetadataGroupMap {
         .collect::<HashMap<_, _>>()
 }
 
+#[derive(Debug, PartialEq, Eq, Hash, Clone)]
+pub struct ItemIdentifier {
+    module_path: String,
+    name: String,
+}
+
+impl ItemIdentifier {
+    pub fn new(module_path: String, name: String) -> Self {
+        Self { module_path, name }
+    }
+}
+
+/// Returns whether an item contains object references.
+fn item_contains_references(
+    items_map: &HashMap<ItemIdentifier, &Metadata>,
+    items_without_references: &mut HashSet<ItemIdentifier>,
+    item_id: ItemIdentifier,
+) -> bool {
+    // Already computed
+    if items_without_references.contains(&item_id) {
+        return false;
+    }
+
+    // New item
+    let Some(item) = items_map.get(&item_id).copied() else {
+        return true;
+    };
+
+    let contains_object_references_fn = |ty: &Type| match ty {
+        Type::Object { .. } => true,
+        Type::External {
+            ref module_path,
+            ref name,
+            ..
+        }
+        | Type::Record {
+            ref module_path,
+            ref name,
+            ..
+        }
+        | Type::Enum {
+            ref module_path,
+            ref name,
+            ..
+        } => item_contains_references(
+            items_map,
+            items_without_references,
+            ItemIdentifier::new(module_path.clone(), name.clone()),
+        ),
+
+        _ => false,
+    };
+
+    let contains_object_references = match item {
+        Metadata::Record(meta) => meta
+            .fields
+            .iter()
+            .flat_map(|field| field.ty.iter_types())
+            .any(contains_object_references_fn),
+        Metadata::Enum(meta) => meta
+            .variants
+            .iter()
+            .flat_map(|v| &v.fields)
+            .flat_map(|field| field.ty.iter_types())
+            .any(contains_object_references_fn),
+        _ => return true,
+    };
+
+    if !contains_object_references {
+        items_without_references.insert(item_id);
+    }
+
+    contains_object_references
+}
+
+/// Computes a set of items that **do not** contain object references.
+pub fn compute_types_without_obj_refs(items: &[Metadata]) -> HashSet<ItemIdentifier> {
+    // Construct a map of all the metadata items
+    let items_map = items
+        .iter()
+        .map(extract_item_identifier)
+        .zip(items)
+        .filter_map(|(i, j)| i.zip(Some(j)))
+        .collect();
+
+    let mut result = HashSet::new();
+
+    // Populate the set with items that have no object references
+    for item in items.iter().filter_map(extract_item_identifier) {
+        item_contains_references(&items_map, &mut result, item);
+    }
+    result
+}
+
+fn extract_item_identifier(metadata: &Metadata) -> Option<ItemIdentifier> {
+    match metadata {
+        Metadata::Record(RecordMetadata {
+            module_path, name, ..
+        })
+        | Metadata::Enum(EnumMetadata {
+            module_path, name, ..
+        }) => Some(ItemIdentifier::new(module_path.clone(), name.clone())),
+        _ => None,
+    }
+}
+
 /// Consume the items into the previously created metadata groups.
-pub fn group_metadata(group_map: &mut MetadataGroupMap, items: Vec<Metadata>) -> Result<()> {
+pub fn group_metadata(
+    group_map: &mut MetadataGroupMap,
+    items: Vec<Metadata>,
+    items_without_obj_refs: &HashSet<ItemIdentifier>,
+) -> Result<()> {
     for item in items {
         if matches!(&item, Metadata::Namespace(_)) {
             continue;
@@ -49,7 +159,7 @@ pub fn group_metadata(group_map: &mut MetadataGroupMap, items: Vec<Metadata>) ->
 
         let crate_name = calc_crate_name(item.module_path()).to_owned(); // XXX - kill clone?
 
-        let item = fixup_external_type(item, group_map);
+        let item = fixup_external_type(item, group_map, &items_without_obj_refs);
         let group = match group_map.get_mut(&crate_name) {
             Some(ns) => ns,
             None => bail!("Unknown namespace for {item:?} ({crate_name})"),
@@ -75,11 +185,16 @@ impl MetadataGroup {
     }
 }
 
-pub fn fixup_external_type(item: Metadata, group_map: &MetadataGroupMap) -> Metadata {
+pub fn fixup_external_type(
+    item: Metadata,
+    group_map: &MetadataGroupMap,
+    items_without_obj_refs: &HashSet<ItemIdentifier>,
+) -> Metadata {
     let crate_name = calc_crate_name(item.module_path()).to_owned();
     let converter = ExternalTypeConverter {
         crate_name: &crate_name,
         crate_to_namespace: group_map,
+        items_without_obj_refs,
     };
     converter.convert_item(item)
 }
@@ -88,6 +203,7 @@ pub fn fixup_external_type(item: Metadata, group_map: &MetadataGroupMap) -> Meta
 struct ExternalTypeConverter<'a> {
     crate_name: &'a str,
     crate_to_namespace: &'a MetadataGroupMap,
+    items_without_obj_refs: &'a HashSet<ItemIdentifier>,
 }
 
 impl<'a> ExternalTypeConverter<'a> {
@@ -178,12 +294,17 @@ impl<'a> ExternalTypeConverter<'a> {
             Type::Enum { module_path, name } | Type::Record { module_path, name }
                 if self.is_module_path_external(&module_path) =>
             {
+                let contains_object_references = !self
+                    .items_without_obj_refs
+                    .contains(&ItemIdentifier::new(module_path.clone(), name.clone()));
+
                 Type::External {
                     namespace: self.crate_to_namespace(&module_path),
                     module_path,
                     name,
                     kind: ExternalKind::DataClass,
                     tagged: false,
+                    contains_object_references,
                 }
             }
             Type::Custom {
@@ -197,6 +318,7 @@ impl<'a> ExternalTypeConverter<'a> {
                     name,
                     kind: ExternalKind::DataClass,
                     tagged: false,
+                    contains_object_references: true,
                 }
             }
             Type::Object {
@@ -207,6 +329,7 @@ impl<'a> ExternalTypeConverter<'a> {
                 name,
                 kind: ExternalKind::Interface,
                 tagged: false,
+                contains_object_references: true,
             },
             Type::CallbackInterface { module_path, name }
                 if self.is_module_path_external(&module_path) =>
@@ -244,6 +367,7 @@ impl<'a> ExternalTypeConverter<'a> {
                 name,
                 kind,
                 tagged,
+                contains_object_references,
             } => {
                 assert!(namespace.is_empty());
                 Type::External {
@@ -252,6 +376,7 @@ impl<'a> ExternalTypeConverter<'a> {
                     name,
                     kind,
                     tagged,
+                    contains_object_references,
                 }
             }
 
