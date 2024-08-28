@@ -38,7 +38,7 @@ pub fn run_script(
     let cdylib_path = test_helper.copy_cdylib_to_out_dir(&out_dir)?;
 
     generate_bindings(
-        &cdylib_path,
+        &[&cdylib_path],
         None,
         &super::KotlinBindingGenerator,
         &CrateConfigSupplier::from(test_helper.cargo_metadata()),

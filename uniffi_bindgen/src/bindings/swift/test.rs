@@ -138,7 +138,7 @@ impl GeneratedSources {
         out_dir: &Utf8Path,
     ) -> Result<Self> {
         let sources = generate_bindings(
-            cdylib_path,
+            &[cdylib_path],
             None,
             &super::SwiftBindingGenerator,
             &CrateConfigSupplier::from(cargo_metadata),

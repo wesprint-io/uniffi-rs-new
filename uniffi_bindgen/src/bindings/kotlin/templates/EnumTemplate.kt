@@ -15,7 +15,6 @@ enum class {{ type_name }} {
     {%- call kt::docstring(variant, 4) %}
     {{ variant|variant_name }}{% if loop.last %};{% else %},{% endif %}
     {%- endfor %}
-    companion object
 }
 {% when Some with (variant_discr_type) %}
 enum class {{ type_name }}(val value: {{ variant_discr_type|type_name(ci) }}) {
@@ -54,14 +53,12 @@ sealed class {{ type_name }}{% if contains_object_references %}: Disposable {% e
     {% if !variant.has_fields() -%}
     object {{ variant|type_name(ci) }} : {{ type_name }}()
     {% else -%}
-    data class {{ variant|type_name(ci) }}(
+    class {{ variant|type_name(ci) }}(
         {%- for field in variant.fields() -%}
         {%- call kt::docstring(field, 8) %}
         val {% call kt::field_name(field, loop.index) %}: {{ field|type_name(ci) }}{% if loop.last %}{% else %}, {% endif %}
         {%- endfor -%}
-    ) : {{ type_name }}() {
-        companion object
-    }
+    ) : {{ type_name }}()
     {%- endif %}
     {% endfor %}
 
@@ -81,7 +78,6 @@ sealed class {{ type_name }}{% if contains_object_references %}: Disposable {% e
         }.let { /* this makes the `when` an expression, which ensures it is exhaustive */ }
     }
     {% endif %}
-    companion object
 }
 
 public object {{ e|ffi_converter_name }} : FfiConverterRustBuffer<{{ type_name }}>{
