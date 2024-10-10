@@ -116,7 +116,7 @@ pub fn create_metadata_items(
         quote! {
             #[doc(hidden)]
             #[no_mangle]
-            pub extern "C" fn #ident() -> u16 {
+            pub const extern "C" fn #ident() -> u16 {
                 // Force constant evaluation to ensure:
                 // 1. The checksum is computed at compile time; and
                 // 2. The metadata buffer is not embedded into the binary.
