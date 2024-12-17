@@ -73,8 +73,9 @@ pub fn mod_path() -> syn::Result<String> {
     // This is a nightly feature, tracked at https://github.com/rust-lang/rust/issues/90765
     let expanded_module_path = TokenStream::expand_expr(&module_path_invoc)
         .map_err(|e| syn::Error::new(Span::call_site(), e))?;
-    Ok(syn::parse::<syn::LitStr>(expanded_module_path)?
-        .value()
+    Ok(syn::parse::<syn::LitStr>(expanded_module_path)
+        .map(|l| l.value())
+        .unwrap_or_else(|_| env!("CARGO_CRATE_NAME").to_owned())
         .split("::")
         .next()
         .unwrap()
